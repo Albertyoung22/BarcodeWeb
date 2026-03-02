@@ -1,0 +1,8 @@
+{
+  "host": "",
+  "port": 8080,
+  "https_enabled": false,
+  "cert_path": "D:\\PythonTest\\barcode_frontend_dt\\cert.pem",
+  "key_path": "D:\\PythonTest\\barcode_frontend_dt\\key.pem",
+  "force_werkzeug": false
+}

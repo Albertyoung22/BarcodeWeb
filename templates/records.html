@@ -1,0 +1,19 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="card">
+  <h3>紀錄（最新在上）</h3>
+  {% if err %}<div class="err">{{ err }}</div>{% endif %}
+  <form method="get" class="form-row">
+    顯示筆數：<input type="number" name="limit" min="10" max="100000" value="{{ limit }}"/>
+    <button class="btn" type="submit">更新</button>
+  </form>
+  <table id="tbl" class="display">
+    <thead><tr><th>時間</th><th>學號/ID</th></tr></thead>
+    <tbody>
+      {% for r in items %}<tr><td>{{ r.time }}</td><td>{{ r.id }}</td></tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+<script>enhanceTable('#tbl');</script>
+<a class="btn outline" href="{{ url_for('download') }}">下載合併後 CSV</a>
+{% endblock %}

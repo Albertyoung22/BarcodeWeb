@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>🏢 自助終端 · 學號輸入</title>
+  <style>
+    :root {
+      --brand: #1e7bd8;
+      --bg: #0b2239;
+      --card: #15314d;
+      --text: #ffffff;
+      --muted: #a0aec0;
+      --ok: #2ecc71;
+      --bad: #e74c3c;
+      --input-bg: #1c456b;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; padding: 0;
+      height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Microsoft JhengHei", Segoe UI, Roboto, Arial;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+    .container {
+      width: 100%;
+      max-width: 800px;
+      text-align: center;
+      padding: 40px;
+      z-index: 2;
+    }
+    h1 {
+      font-size: 3rem;
+      margin-bottom: 40px;
+      letter-spacing: 2px;
+      text-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    }
+    .input-wrap {
+      position: relative;
+      margin-bottom: 30px;
+    }
+    input[type="text"] {
+      width: 100%;
+      padding: 24px;
+      font-size: 4rem;
+      border: 4px solid var(--input-bg);
+      border-radius: 20px;
+      background: var(--input-bg);
+      color: #fff;
+      text-align: center;
+      outline: none;
+      transition: all 0.3s ease;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+    }
+    input[type="text"]:focus {
+      border-color: var(--brand);
+      background: #235685;
+      box-shadow: 0 0 0 10px rgba(30, 123, 216, 0.2);
+    }
+    .status-overlay {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.3s ease;
+      background: rgba(11, 34, 57, 0.95);
+    }
+    .status-overlay.active {
+      opacity: 1;
+    }
+    .status-content {
+      transform: scale(0.8);
+      transition: transform 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+      text-align: center;
+    }
+    .status-overlay.active .status-content {
+      transform: scale(1);
+    }
+    .icon {
+      font-size: 10rem;
+      margin-bottom: 20px;
+    }
+    .msg-title {
+      font-size: 4rem;
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+    .msg-sub {
+      font-size: 2rem;
+      color: var(--muted);
+    }
+    .ok-theme { background: var(--ok); color: #fff; }
+    .bad-theme { background: var(--bad); color: #fff; }
+    
+    .hint {
+      margin-top: 20px;
+      font-size: 1.2rem;
+      color: var(--muted);
+    }
+    /* 玻璃擬態 */
+    .glass {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 30px;
+    }
+    .footer-links {
+      position: absolute;
+      bottom: 20px;
+      display: flex;
+      gap: 20px;
+    }
+    .footer-links a {
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.9rem;
+    }
+    .footer-links a:hover { color: #fff; }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <h1>請輸入學號</h1>
+    <div class="input-wrap">
+      <input type="text" id="sid" placeholder="————" autofocus autocomplete="off" />
+    </div>
+    <div class="hint">輸入後請按 Enter 送出</div>
+  </div>
+
+  <div id="overlay" class="status-overlay">
+    <div class="status-content">
+      <div id="statusIcon" class="icon">✔</div>
+      <div id="statusTitle" class="msg-title">成功</div>
+      <div id="statusSub" class="msg-sub">學號：12345678</div>
+    </div>
+  </div>
+
+  <div class="footer-links">
+    <a href="/static/ui/index.html">查詢後台</a>
+    <a href="/static/ui/submit.html">送件台</a>
+    <span id="apiStatus" style="color: #4a5568;">API: 檢查中...</span>
+  </div>
+
+  <script>
+    const $ = s => document.querySelector(s);
+    const sidInput = $("#sid");
+    const overlay = $("#overlay");
+    const statusIcon = $("#statusIcon");
+    const statusTitle = $("#statusTitle");
+    const statusSub = $("#statusSub");
+    const apiStatus = $("#apiStatus");
+
+    // 配置
+    const API_BASE = location.origin;
+    let isSubmitting = false;
+
+    // 嗶聲
+    function playBeep(success) {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = "sine";
+        o.frequency.value = success ? 880 : 220;
+        o.connect(g);
+        g.connect(ctx.destination);
+        g.gain.setValueAtTime(0, ctx.currentTime);
+        g.gain.linearRampToValueAtTime(0.2, ctx.currentTime + 0.01);
+        o.start();
+        const duration = success ? 0.1 : 0.3;
+        g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + duration);
+        o.stop(ctx.currentTime + duration + 0.1);
+      } catch (e) {}
+    }
+
+    function showStatus(ok, title, sub) {
+      overlay.className = `status-overlay active ${ok ? 'ok-theme' : 'bad-theme'}`;
+      statusIcon.textContent = ok ? "✔" : "✖";
+      statusTitle.textContent = title;
+      statusSub.textContent = sub;
+      playBeep(ok);
+
+      // 3秒後消失
+      setTimeout(() => {
+        overlay.classList.remove("active");
+        sidInput.value = "";
+        sidInput.focus();
+        isSubmitting = false;
+      }, 2500);
+    }
+
+    async function submit() {
+      const id = sidInput.value.trim();
+      if (!id || isSubmitting) return;
+      isSubmitting = true;
+
+      try {
+        const resp = await fetch(`${API_BASE}/scan`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ id: id })
+        });
+        const data = await resp.json();
+        if (data.ok) {
+          showStatus(true, "刷卡成功", `學號：${id}`);
+        } else {
+          showStatus(false, "失敗", data.err || "未知錯誤");
+        }
+      } catch (e) {
+        showStatus(false, "連線錯誤", e.message);
+      }
+    }
+
+    // 事件
+    sidInput.addEventListener("keydown", e => {
+      if (e.key === "Enter") submit();
+    });
+
+    // 強制聚焦
+    document.addEventListener("click", () => sidInput.focus());
+    setInterval(() => {
+      if (document.activeElement !== sidInput && !overlay.classList.contains("active")) {
+        sidInput.focus();
+      }
+    }, 500);
+
+    // 檢查 API
+    async function checkHealth() {
+      try {
+        const r = await fetch(`${API_BASE}/health`);
+        const j = await r.json();
+        apiStatus.textContent = "API: 線上";
+        apiStatus.style.color = "#2ecc71";
+      } catch (e) {
+        apiStatus.textContent = "API: 斷線";
+        apiStatus.style.color = "#e74c3c";
+      }
+    }
+    checkHealth();
+    setInterval(checkHealth, 10000);
+
+  </script>
+</body>
+</html>

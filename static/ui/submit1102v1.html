@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>📥 學號輸入 · 前端送件</title>
+  <style>
+    :root{ --brand:#1e7bd8; --bg:#f5f8fb; --card:#ffffff; --muted:#5a6b80; --br:#d9e8fb; --ok:#0a8754; --bad:#d64545; }
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0;background:var(--bg);font-family:system-ui,-apple-system,"Microsoft JhengHei",Segoe UI,Roboto,Arial}
+    header{position:sticky;top:0;background:var(--brand);color:#fff;padding:10px 14px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+    main{max-width:960px;margin:0 auto;padding:16px}
+    .card{background:var(--card);border:1px solid var(--br);border-radius:14px;box-shadow:0 4px 18px rgba(30,123,216,.05);padding:14px;margin-bottom:14px}
+    h2{margin:6px 0 10px 0;font-size:18px}
+    label{font-size:13px;color:var(--muted)}
+    input[type="text"], input[type="url"]{
+      padding:10px 12px;border:1px solid var(--br);border-radius:12px;background:#fff;outline:none;
+    }
+    input#sid{ font-size:28px; letter-spacing:.5px; width:100%; }
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    button{background:var(--brand);color:#fff;border:0;border-radius:12px;padding:10px 14px;cursor:pointer;box-shadow:0 2px 8px rgba(30,123,216,.18)}
+    .hint{font-size:12px;color:var(--muted)}
+    ul{margin:8px 0 0 20px}
+    .ok{color:var(--ok)} .bad{color:var(--bad)}
+    .pill{display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;border:1px solid var(--br);background:#fff;color:var(--muted);font-size:12px}
+    .grid{display:grid;grid-template-columns: 1fr auto; gap:10px; align-items:center;}
+  </style>
+</head>
+<body>
+  <header>
+    <b>📥 學號輸入 · 前端送件</b>
+  </header>
+  <main>
+    <section class="card">
+      <h2>連線設定</h2>
+      <div class="row">
+        <label for="base">後端 URL</label>
+        <input id="base" type="url" placeholder="例如：http://192.168.1.10:8080" style="min-width:320px">
+        <button id="saveBase">儲存</button>
+        <span class="hint">預設使用本頁網域（<span id="defaultOrigin"></span>）。你也可以改填別台機器。</span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>輸入學號並送出</h2>
+      <div class="grid">
+        <input id="sid" type="text" autocomplete="off" placeholder="請刷條碼或手動輸入學號，按 Enter 送出">
+        <button id="sendBtn">送出</button>
+      </div>
+      <div class="row" style="margin-top:8px">
+        <label class="pill"><input type="checkbox" id="keepFocus" style="margin-right:6px" checked>保持游標在輸入框</label>
+        <label class="pill"><input type="checkbox" id="clearAfter" style="margin-right:6px" checked>送出後清空</label>
+        <label class="pill"><input type="checkbox" id="beepOk" style="margin-right:6px" checked>成功提示音</label>
+        <span id="msg" class="hint"></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>最近送出</h2>
+      <ul id="recent"></ul>
+      <div class="hint">顯示最後 10 筆本頁送出的結果。清單頁（index.html）會透過 SSE 自動看到新增。</div>
+    </section>
+  </main>
+
+  <script>
+    const $ = sel => document.querySelector(sel);
+    const defaultOrigin = location.origin;
+    $("#defaultOrigin").textContent = defaultOrigin;
+
+    const KEY_BASE = "scan_submit_base_v1";
+    const KEY_KEEP = "scan_submit_keep_v1";
+    const KEY_CLR  = "scan_submit_clear_v1";
+    const KEY_BEEP = "scan_submit_beep_v1";
+
+    // 恢復設定
+    $("#base").value = localStorage.getItem(KEY_BASE) || defaultOrigin;
+    $("#keepFocus").checked = (localStorage.getItem(KEY_KEEP) ?? "1") === "1";
+    $("#clearAfter").checked = (localStorage.getItem(KEY_CLR) ?? "1") === "1";
+    $("#beepOk").checked = (localStorage.getItem(KEY_BEEP) ?? "1") === "1";
+
+    $("#saveBase").addEventListener("click", () => {
+      const v = $("#base").value.trim() || defaultOrigin;
+      localStorage.setItem(KEY_BASE, v);
+      toast("已儲存後端 URL");
+    });
+    $("#keepFocus").addEventListener("change", () => localStorage.setItem(KEY_KEEP, $("#keepFocus").checked ? "1":"0"));
+    $("#clearAfter").addEventListener("change", () => localStorage.setItem(KEY_CLR, $("#clearAfter").checked ? "1":"0"));
+    $("#beepOk").addEventListener("change", () => localStorage.setItem(KEY_BEEP, $("#beepOk").checked ? "1":"0"));
+
+    function toast(t, ok=true){
+      const el = $("#msg");
+      el.textContent = t;
+      el.className = ok ? "hint ok" : "hint bad";
+      setTimeout(() => { el.textContent = ""; el.className = "hint"; }, 2000);
+    }
+
+    // 簡單 Beep
+    function beep(){
+      if (!$("#beepOk").checked) return;
+      try{
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const osc = ctx.createOscillator();
+        const g = ctx.createGain();
+        osc.connect(g); g.connect(ctx.destination);
+        osc.frequency.value = 880;
+        osc.start();
+        g.gain.setValueAtTime(0.2, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.12);
+        setTimeout(()=>{ osc.stop(); ctx.close(); }, 160);
+      }catch(e){}
+    }
+
+    const recent = [];
+    function pushRecent(ok, id, time, err){
+      if(recent.length >= 10) recent.shift();
+      const li = document.createElement("li");
+      if(ok){
+        li.innerHTML = `<span class="ok">✅</span> ${time}　<span class="mono">${id}</span>`;
+      }else{
+        li.innerHTML = `<span class="bad">❌</span> ${new Date().toLocaleString()}　<code>${err||"失敗"}</code>`;
+      }
+      recent.push(li);
+      const ul = $("#recent");
+      ul.innerHTML = "";
+      recent.forEach(n => ul.appendChild(n));
+    }
+
+    async function send(){
+      const id = $("#sid").value.trim();
+      if(!id){
+        toast("請先輸入學號", false);
+        $("#sid").focus();
+        return;
+      }
+      const base = $("#base").value.trim() || defaultOrigin;
+      try{
+        const r = await fetch(base.replace(/\/+$/,"") + "/scan", {
+          method: "POST",
+          headers: { "Content-Type":"application/json" },
+          body: JSON.stringify({ id })
+        });
+        const j = await r.json().catch(()=>({ok:false, err:`HTTP ${r.status}`}));
+        if(!r.ok || j.ok === false){
+          throw new Error(j.err || `HTTP ${r.status}`);
+        }
+        pushRecent(true, j.id, j.time);
+        toast("送出成功");
+        beep();
+        if($("#clearAfter").checked){ $("#sid").value = ""; }
+      }catch(e){
+        pushRecent(false, id, "", e.message);
+        toast(`送出失敗：${e.message||e}`, false);
+      }finally{
+        if($("#keepFocus").checked) $("#sid").focus();
+      }
+    }
+
+    $("#sendBtn").addEventListener("click", send);
+    $("#sid").addEventListener("keydown", (ev) => {
+      if(ev.key === "Enter"){ ev.preventDefault(); send(); }
+    });
+
+    // 初始聚焦
+    $("#sid").focus();
+    // 週期維持焦點（防某些瀏覽器/條碼器影響）
+    setInterval(() => {
+      if($("#keepFocus").checked && document.activeElement !== $("#sid")){
+        $("#sid").focus();
+      }
+    }, 500);
+  </script>
+</body>
+</html>

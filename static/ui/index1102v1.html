@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>📋 掃描紀錄 · 前端查詢</title>
+  <style>
+    :root{
+      --brand:#1e7bd8; --bg:#f5f8fb; --card:#ffffff; --muted:#5a6b80; --br:#d9e8fb;
+      --ok:#0a8754; --warn:#e38b06; --bad:#d64545;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0;background:var(--bg);font-family:system-ui,-apple-system,"Microsoft JhengHei",Segoe UI,Roboto,Arial}
+    header{position:sticky;top:0;z-index:9;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:10px 14px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+    header .title{font-weight:700;letter-spacing:.3px}
+    header .links a{color:#dff1ff;text-decoration:none;margin-left:12px;font-size:13px}
+    main{max-width:1280px;margin:0 auto;padding:14px}
+    .card{background:var(--card);border:1px solid var(--br);border-radius:14px;box-shadow:0 4px 18px rgba(30,123,216,.05);padding:12px 14px;margin-bottom:14px}
+    h2{margin:6px 0 10px 0;font-size:18px}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    label{font-size:13px;color:var(--muted)}
+    input[type="file"]{padding:6px 8px;background:#fff;border:1px solid var(--br);border-radius:10px}
+    input[type="number"], input[type="text"], select{
+      padding:8px 10px;border:1px solid var(--br);border-radius:12px;background:#fff;outline:none;
+    }
+    input[type="text"]{min-width:260px}
+    button{
+      background:var(--brand);color:#fff;border:0;border-radius:12px;padding:8px 12px;cursor:pointer;
+      box-shadow:0 2px 8px rgba(30,123,216,.18);
+    }
+    button.secondary{background:#eef6ff;color:#0b2239;border:1px solid var(--br)}
+    button.danger{background:#ffe9e9;color:#8b1515;border:1px solid #ffcdcd}
+    .pill{display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;border:1px solid var(--br);background:#fff;color:var(--muted);font-size:12px}
+    .ok{color:var(--ok)} .bad{color:var(--bad)} .warn{color:var(--warn)}
+    .table-wrap{overflow:auto; max-height:65vh; border:1px solid #eef2f7; border-radius:10px;}
+    table{width:100%;border-collapse:collapse; table-layout: fixed;}
+    th,td{border-bottom:1px solid #eee;padding:8px 10px;text-align:left;vertical-align:top;font-size:14px;word-wrap:break-word}
+    th{background:#f7fbff;position:sticky;top:0;z-index:2}
+    .toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    .hint{font-size:12px;color:var(--muted)}
+    .right{margin-left:auto}
+    .status{display:flex;gap:10px;flex-wrap:wrap}
+    .chip{padding:4px 10px;background:#eef7ff;color:#0b2239;border:1px solid var(--br);border-radius:999px;font-size:12px}
+    .mono{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace}
+    .fade{opacity:.7}
+    .center{display:flex;align-items:center;justify-content:center;padding:14px}
+    .sortMark{opacity:.7;font-size:12px;margin-left:6px}
+    /* 欄位設定 Dialog */
+    .modal-mask{position:fixed;inset:0;background:rgba(0,0,0,.28);display:none;align-items:center;justify-content:center;padding:16px;z-index:99}
+    .modal{width:min(720px, 96vw);background:#fff;border-radius:16px;border:1px solid var(--br);box-shadow:0 16px 40px rgba(0,0,0,.2);padding:14px}
+    .modal header{position:static;background:#fff;color:#0b2239;box-shadow:none;padding:0 0 10px 0}
+    .modal h3{margin:0 0 8px 0}
+    .modal .content{display:grid;grid-template-columns: 1fr 1fr; gap:12px;max-height:60vh;overflow:auto}
+    .col-list{border:1px solid #eef2f7;border-radius:10px;padding:8px}
+    .col-item{display:flex;align-items:center;gap:10px;padding:6px 4px;border-bottom:1px dashed #eee}
+    .col-item:last-child{border-bottom:0}
+    .drag{width:18px;text-align:center;opacity:.5;user-select:none}
+    .col-item button{padding:4px 8px;border-radius:8px}
+    .modal footer{display:flex;gap:10px;justify-content:flex-end;margin-top:12px}
+    .muted{color:var(--muted);font-size:12px}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="title">📋 掃描紀錄 · 前端查詢</div>
+    <div class="links">
+      <a href="#" id="setBackend">設定後端</a>
+      <a href="/health" target="_blank">/health</a>
+      <a href="/stats" target="_blank">/stats</a>
+      <a href="/download.csv" target="_blank">下載 CSV</a>
+	  <a href="/static/ui/submit.html">🧪 前端送件（相機）</a>
+
+    </div>
+  </header>
+  <main>
+    <section class="card">
+      <h2>系統狀態</h2>
+      <div class="status" id="statusRow">
+        <span class="chip">總筆數：<b id="totalCount">--</b></span>
+        <span class="chip">名冊：<b id="rosterState" class="mono">--</b></span>
+        <span class="chip">學號欄：<b id="idKey" class="mono">--</b></span>
+        <span class="chip">欄位：<span id="rosterCols" class="mono fade">--</span></span>
+        <span class="chip">伺服器時間：<span id="serverTs" class="mono">--</span></span>
+        <span class="chip">後端：<span id="backendChip" class="mono">--</span></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>名冊管理</h2>
+      <div class="row">
+        <input type="file" id="rosterFile" accept=".xlsx,.xls,.csv">
+        <button id="btnUpload">上傳名冊</button>
+        <button id="btnClear" class="danger">清除名冊</button>
+        <span id="uploadMsg" class="hint"></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>紀錄列表（含名冊合併）</h2>
+      <div class="toolbar">
+        <label>顯示筆數</label>
+        <select id="limitSel">
+          <option value="200">200</option>
+          <option value="500" selected>500</option>
+          <option value="1000">1000</option>
+          <option value="2000">2000</option>
+        </select>
+        <button id="btnReload">重新整理</button>
+        <button id="btnRebuildCols" class="secondary">重建欄位</button>
+        <button id="btnCols" class="secondary">欄位設定</button>
+        <label>搜尋</label><input type="text" id="searchBox" placeholder="輸入關鍵字（時間、學號、班級、座號、姓名…）">
+        <label class="pill"><input type="checkbox" id="autoRefresh" style="margin-right:6px">每 10 秒自動刷新</label>
+        <span class="right hint">點欄位可排序</span>
+      </div>
+      <div id="tableWrap" class="table-wrap"><div class="center">載入中…</div></div>
+    </section>
+  </main>
+
+  <!-- 欄位設定 Modal -->
+  <div class="modal-mask" id="modalMask">
+    <div class="modal">
+      <header>
+        <h3>欄位設定</h3>
+        <div class="muted">勾選要顯示的欄位，可用「上移/下移」調整順序。設定會保存在此瀏覽器。</div>
+      </header>
+      <div class="content">
+        <div>
+          <div class="muted" style="margin-bottom:6px">欄位（左到右 = 顯示順序）</div>
+          <div id="colList" class="col-list"></div>
+        </div>
+        <div>
+          <div class="muted" style="margin-bottom:6px">快速操作</div>
+          <div class="row" style="gap:8px; margin-bottom:10px;">
+            <button id="btnAllOn" class="secondary">全選</button>
+            <button id="btnAllOff" class="secondary">全不選</button>
+            <button id="btnReset" class="secondary">回復預設</button>
+          </div>
+          <div class="muted">預設順序：time、id、姓名、班級、座號，其餘依字母序。若新欄位出現，會自動附加在最後。</div>
+        </div>
+      </div>
+      <footer>
+        <button id="btnClose" class="secondary">取消</button>
+        <button id="btnSave">儲存並套用</button>
+      </footer>
+    </div>
+  </div>
+
+  <script>
+    // ==== 後端位址設定（支援分離部署） ====
+    const BACKEND = (localStorage.getItem('backend_base') || location.origin).replace(/\/$/, '');
+    const api = (path) => BACKEND + path;
+
+    const $ = (sel) => document.querySelector(sel);
+    const statusEls = {
+      totalCount: $("#totalCount"),
+      rosterState: $("#rosterState"),
+      idKey: $("#idKey"),
+      rosterCols: $("#rosterCols"),
+      serverTs: $("#serverTs"),
+      backendChip: $("#backendChip"),
+    };
+    statusEls.backendChip.textContent = BACKEND;
+    $("#setBackend").addEventListener('click', (e) => {
+      e.preventDefault();
+      const v = prompt('設定後端 Base URL（例如 http://192.168.1.10:8080 ）', BACKEND);
+      if(v){ localStorage.setItem('backend_base', v.replace(/\/$/, '')); location.reload(); }
+    });
+
+    const tableWrap = $("#tableWrap");
+    const limitSel = $("#limitSel");
+    const searchBox = $("#searchBox");
+    const autoRefresh = $("#autoRefresh");
+
+    const COL_PREFS_KEY = "scanlist_col_prefs_v1";
+
+    let rawItems = [];       // 從 API 取得的 items（合併名冊）
+    let colOrder = [];       // 動態欄位順序（穩定，不會每次刷新重建，以免跳動）
+    let visibleSet = null;   // Set<string> 可見欄位；null 表示全顯
+    let sortKey = "time";    // 目前排序欄
+    let sortAsc = false;     // 預設時間新→舊（降冪）
+
+    // 偏好欄位
+    const PREF_KEYS = [
+      ["time","時間"],
+      ["id","學號","student_id","sid","stu_id"],
+      ["姓名","name","student_name"],
+      ["班級","班級名稱","班別","class","class_name","班"],
+      ["座號","座次","號碼","seat","seat_no"],
+    ];
+
+    // ---- localStorage
+    function loadPrefs(){
+      try{ const s = localStorage.getItem(COL_PREFS_KEY); if(!s) return null; const obj = JSON.parse(s); if(!obj || !Array.isArray(obj.order)) return null; return obj; }catch(e){ return null; }
+    }
+    function savePrefs(order, visibleArr){
+      const payload = { order: Array.from(order||[]), visible: Array.from(visibleArr||[]) };
+      localStorage.setItem(COL_PREFS_KEY, JSON.stringify(payload));
+    }
+
+    async function getJSON(url){
+      const r = await fetch(api(url), {cache:"no-store"});
+      if(!r.ok) throw new Error(`HTTP ${r.status}`);
+      return await r.json();
+    }
+
+    async function postForm(url, formData){
+      const r = await fetch(api(url), { method:"POST", body: formData });
+      const j = await r.json().catch(()=>({ok:false, err:"invalid_json"}));
+      if(!r.ok || j.ok === false){
+        const msg = j.err || `HTTP ${r.status}`;
+        throw new Error(msg);
+      }
+      return j;
+    }
+
+    async function postJSON(url, obj){
+      const r = await fetch(api(url), {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify(obj||{})
+      });
+      const j = await r.json().catch(()=>({ok:false, err:"invalid_json"}));
+      if(!r.ok || j.ok === false){
+        const msg = j.err || `HTTP ${r.status}`;
+        throw new Error(msg);
+      }
+      return j;
+    }
+
+    function fmt(v){ return (v===null||v===undefined) ? "" : String(v); }
+
+    function collectKeys(items){ const s = new Set(); items.forEach(it => Object.keys(it).forEach(k => s.add(k))); return s; }
+
+    function pickPreferred(keysSet){
+      const picked = [];
+      for(const group of PREF_KEYS){ for(const alias of group){ if(keysSet.has(alias)){ picked.push(alias); break; } } }
+      return picked;
+    }
+
+    function initialColumns(items){
+      const keys = collectKeys(items);
+      const front = pickPreferred(keys);
+      const rest = Array.from(keys).filter(k => !front.includes(k)).sort((a,b)=> a.localeCompare(b));
+      return front.concat(rest);
+    }
+
+    function updateColumns(items){
+      const keys = collectKeys(items);
+      if(colOrder.length===0){ colOrder = initialColumns(items); return; }
+      const known = new Set(colOrder);
+      const newcomers = Array.from(keys).filter(k => !known.has(k)).sort((a,b)=> a.localeCompare(b));
+      colOrder = colOrder.concat(newcomers);
+      if(visibleSet){ /* 新欄位預設隱藏 */ }
+    }
+
+    function applyPrefsToColumns(items){
+      const keys = collectKeys(items);
+      const prefs = loadPrefs();
+      if(!prefs){ visibleSet = null; return; }
+      const existing = new Set();
+      const picked = [];
+      for(const k of (prefs.order||[])){ if(keys.has(k) && !existing.has(k)){ picked.push(k); existing.add(k); } }
+      for(const k of colOrder){ if(!existing.has(k)) picked.push(k), existing.add(k); }
+      colOrder = picked;
+      const vis = new Set();
+      if(Array.isArray(prefs.visible) && prefs.visible.length){ prefs.visible.forEach(k => { if(keys.has(k)) vis.add(k); }); visibleSet = vis; } else { visibleSet = null; }
+    }
+
+    function getVisibleColumns(){ return visibleSet ? colOrder.filter(k => visibleSet.has(k)) : colOrder.slice(); }
+
+    function renderTable(items){
+      if(!items || items.length===0){ tableWrap.innerHTML = `<div class="center">沒有符合條件的資料</div>`; return; }
+      const cols = getVisibleColumns();
+      if(cols.length===0){ tableWrap.innerHTML = `<div class="center">未選擇任何欄位（請點「欄位設定」勾選）</div>`; return; }
+      const thead = `<thead><tr>` + cols.map(k => {
+        const mark = (k===sortKey) ? `<span class="sortMark">${sortAsc ? "▲" : "▼"}</span>` : "";
+        return `<th data-key="${k}">${k}${mark}</th>`;
+      }).join("") + `</tr></thead>`;
+      const rows = items.map(it => `<tr>` + cols.map(k => `<td>${fmt(it[k])}</td>`).join("") + `</tr>`).join("");
+      const tbody = `<tbody>${rows}</tbody>`;
+      tableWrap.innerHTML = `<div class="table-wrap-inner"><table>${thead}${tbody}</table></div>`;
+      tableWrap.querySelectorAll("th").forEach(th => {
+        th.addEventListener("click", () => {
+          const key = th.getAttribute("data-key"); if(!key) return;
+          if(sortKey === key){ sortAsc = !sortAsc; } else { sortKey = key; sortAsc = true; }
+          applySearchAndRender();
+        });
+      });
+    }
+
+    function applySearchAndRender(){
+      const q = searchBox.value.trim();
+      let list = rawItems.slice();
+      list.sort((a,b) => {
+        const va = fmt(a[sortKey]);
+        const vb = fmt(b[sortKey]);
+        if(sortKey === "time") return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+        if(!isNaN(Number(va)) && !isNaN(Number(vb))) return sortAsc ? (Number(va)-Number(vb)) : (Number(vb)-Number(va));
+        return sortAsc ? va.localeCompare(vb) : vb.localeCompare(va);
+      });
+      if(q){
+        const lower = q.toLowerCase();
+        const cols = getVisibleColumns();
+        list = list.filter(it => cols.some(k => fmt(it[k]).toLowerCase().includes(lower)));
+      }
+      renderTable(list);
+    }
+
+    async function loadStats(){
+      try{
+        const s = await getJSON("/stats");
+        statusEls.totalCount.textContent = s.total_records ?? "--";
+        statusEls.rosterState.textContent = s.roster_loaded ? "已載入" : "未載入";
+        statusEls.rosterState.className = s.roster_loaded ? "ok" : "bad";
+        statusEls.idKey.textContent = s.roster_id_key || "--";
+        statusEls.rosterCols.textContent = (s.roster_cols && s.roster_cols.length) ? s.roster_cols.join(", ") : "--";
+      }catch(e){ statusEls.rosterState.textContent = "無法取得 /stats"; statusEls.rosterState.className = "bad"; }
+      try{ const h = await getJSON("/health"); statusEls.serverTs.textContent = h.ts || "--"; }catch(e){ statusEls.serverTs.textContent = "—"; }
+    }
+
+    async function loadData(){
+      const limit = Number(limitSel.value || 500);
+      try{
+        tableWrap.innerHTML = `<div class="center">載入中…</div>`;
+        const j = await getJSON(`/records/joined?limit=${limit}`);
+        rawItems = j.items || [];
+        updateColumns(rawItems);
+        applyPrefsToColumns(rawItems);
+        applySearchAndRender();
+      }catch(e){ tableWrap.innerHTML = `<div class="center bad">讀取失敗：${e.message || e}</div>`; }
+    }
+
+    // ===== 欄位設定 Dialog =====
+    const modalMask = $("#modalMask");
+    const colList = $("#colList");
+    let colOrderEdit = [];
+    let visibleSetEdit = null;
+
+    function openDialog(){ updateColumns(rawItems); colOrderEdit = colOrder.slice(); visibleSetEdit = (visibleSet ? new Set(visibleSet) : null); renderDialogList(); modalMask.style.display = "flex"; }
+    function closeDialog(){ modalMask.style.display = "none"; }
+
+    function renderDialogList(){
+      const items = colOrderEdit.map((k, idx) => {
+        const checked = (!visibleSetEdit || visibleSetEdit.has(k)) ? "checked" : "";
+        return `
+          <div class="col-item" data-key="${k}">
+            <div class="drag">☰</div>
+            <input type="checkbox" class="col-check" data-key="${k}" ${checked}>
+            <label style="min-width:120px">${k}</label>
+            <span class="right"></span>
+            <button class="secondary btnUp" data-index="${idx}">上移</button>
+            <button class="secondary btnDown" data-index="${idx}">下移</button>
+          </div>`;
+      }).join("");
+      colList.innerHTML = items;
+      colList.querySelectorAll(".col-check").forEach(chk => { chk.addEventListener("change", (e) => { const key = e.target.getAttribute("data-key"); if(!visibleSetEdit){ visibleSetEdit = new Set(colOrderEdit); } if(e.target.checked){ visibleSetEdit.add(key); } else { visibleSetEdit.delete(key); } }); });
+      colList.querySelectorAll(".btnUp").forEach(btn => { btn.addEventListener("click", () => { const i = Number(btn.getAttribute("data-index")); if(i <= 0) return; const k = colOrderEdit[i]; colOrderEdit.splice(i,1); colOrderEdit.splice(i-1,0,k); renderDialogList(); }); });
+      colList.querySelectorAll(".btnDown").forEach(btn => { btn.addEventListener("click", () => { const i = Number(btn.getAttribute("data-index")); if(i >= colOrderEdit.length-1) return; const k = colOrderEdit[i]; colOrderEdit.splice(i,1); colOrderEdit.splice(i+1,0,k); renderDialogList(); }); });
+    }
+
+    $("#btnAllOn").addEventListener("click", () => { visibleSetEdit = new Set(colOrderEdit); renderDialogList(); });
+    $("#btnAllOff").addEventListener("click", () => { visibleSetEdit = new Set(); renderDialogList(); });
+    $("#btnReset").addEventListener("click", () => { colOrderEdit = initialColumns(rawItems); visibleSetEdit = null; renderDialogList(); });
+    $("#btnSave").addEventListener("click", () => { colOrder = colOrderEdit.slice(); visibleSet = (visibleSetEdit && visibleSetEdit.size === colOrder.length) ? null : visibleSetEdit; savePrefs(colOrder, visibleSet ? Array.from(visibleSet) : []); applySearchAndRender(); closeDialog(); });
+    $("#btnClose").addEventListener("click", closeDialog);
+    $("#btnCols").addEventListener("click", openDialog);
+
+    $("#btnReload").addEventListener("click", () => { loadStats(); loadData(); });
+    $("#btnRebuildCols").addEventListener("click", () => { colOrder = []; if(rawItems.length) { colOrder = initialColumns(rawItems); applySearchAndRender(); } });
+    limitSel.addEventListener("change", loadData);
+    searchBox.addEventListener("input", () => applySearchAndRender());
+    autoRefresh.addEventListener("change", () => { if(autoRefresh.checked){ loopAuto(); } });
+
+    $("#btnUpload").addEventListener("click", async () => {
+      const fi = $("#rosterFile");
+      $("#uploadMsg").textContent = "";
+      if(!fi.files || fi.files.length===0){ $("#uploadMsg").textContent = "請先選擇名冊檔（xlsx/csv）"; return; }
+      const fd = new FormData(); fd.append("file", fi.files[0]);
+      try{ $("#uploadMsg").textContent = "上傳中…"; const j = await postForm("/upload_roster", fd); $("#uploadMsg").textContent = `✅ 名冊載入成功：共 ${j.count} 筆；學號欄：${j.id_key}`; await loadStats(); await loadData(); }
+      catch(e){ $("#uploadMsg").textContent = `❌ 失敗：${e.message || e}`; }
+    });
+
+    $("#btnClear").addEventListener("click", async () => {
+      if(!confirm("確定清除名冊？")) return;
+      try{ await postJSON("/roster/clear", {}); $("#uploadMsg").textContent = "已清除名冊"; await loadStats(); await loadData(); }
+      catch(e){ $("#uploadMsg").textContent = `❌ 清除失敗：${e.message || e}`; }
+    });
+
+    async function loopAuto(){
+      while(autoRefresh.checked){ try{ await loadStats(); await loadData(); }catch(e){} await new Promise(r => setTimeout(r, 10000)); }
+    }
+
+    // 啟動即載入
+    (async function init(){ await loadStats(); await loadData(); })();
+
+    // ==== SSE：即時同步（核心修正） ====
+    function incrementTotalCount(){
+      const n = Number(statusEls.totalCount.textContent||'0');
+      statusEls.totalCount.textContent = String(n+1);
+    }
+
+    function appendScanItem(item){
+      // 去重（以 time+id 粗略判斷）
+      const key = `${item.time}__${item.id}`;
+      const last = rawItems[0];
+      if(last && `${last.time}__${last.id}` === key){ return; }
+      rawItems.unshift(item);
+      const limit = Number(limitSel.value || 500);
+      if(rawItems.length > limit) rawItems.length = limit; // 截斷
+      updateColumns(rawItems);
+      applySearchAndRender();
+      incrementTotalCount();
+    }
+
+    function onRosterLoaded(){ loadStats(); loadData(); }
+    function onRosterCleared(){ loadStats(); loadData(); }
+
+    // 如果前端與後端不同源，必須用 BACKEND + "/events"
+    let es = null;
+    function startSSE(){
+      try{
+        es = new EventSource(api("/events"));
+      }catch(e){ console.warn('SSE init error', e); return; }
+
+      es.onmessage = (ev) => {
+        try{
+          const msg = JSON.parse(ev.data);
+          if(msg.type === 'scan_added'){ appendScanItem(msg.data || {}); }
+          else if(msg.type === 'roster_loaded'){ onRosterLoaded(); }
+          else if(msg.type === 'roster_cleared'){ onRosterCleared(); }
+        }catch(err){ console.warn('SSE parse error', err); }
+      };
+      es.onerror = (e) => { console.warn('SSE error; will retry automatically', e); };
+    }
+    startSSE();
+  </script>
+</body>
+</html>

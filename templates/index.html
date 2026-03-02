@@ -1,0 +1,25 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="card">
+  <h3>系統狀態</h3>
+  {% if err %}<div class="err">{{ err }}</div>{% endif %}
+  <div class="form-row"><b>健康檢查：</b>
+    {% if health %}<span class="good">OK（{{ health.ts }}）</span>{% else %}<span class="muted">尚未連線</span>{% endif %}
+  </div>
+  <div class="form-row"><b>統計：</b>
+    {% if stats %}
+      <div>紀錄總數：{{ stats.total_records }}</div>
+      <div>名冊載入：{{ "Yes" if stats.roster_loaded else "No" }}, 學號欄位：{{ stats.roster_id_key or "-" }}</div>
+      {% if stats.roster_cols %}<div>名冊欄位：{{ ", ".join(stats.roster_cols) }}</div>{% endif %}
+    {% else %}<div class="muted">尚未連線</div>{% endif %}
+  </div>
+  <div class="form-row" style="margin-top:10px">
+    <a class="btn" href="{{ url_for('records') }}">查看紀錄</a>
+    <a class="btn outline" href="{{ url_for('joined') }}">查看合併名冊</a>
+    <a class="btn outline" href="{{ url_for('upload') }}">上傳名冊</a>
+  </div>
+</div>
+<form action="{{ url_for('roster_clear') }}" method="post" onsubmit="return confirm('確定清除後端名冊？');">
+  <button class="btn outline" type="submit">清除後端名冊</button>
+</form>
+{% endblock %}

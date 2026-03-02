@@ -1,0 +1,12 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="card">
+  <h3>上傳名冊（xlsx 或 csv）</h3>
+  {% if msg %}<div class="good">{{ msg }}</div>{% endif %}
+  {% if err %}<div class="err">{{ err }}</div>{% endif %}
+  <form method="post" enctype="multipart/form-data">
+    <div class="form-row"><input type="file" name="file" accept=".xlsx,.xls,.csv"/></div>
+    <div class="form-row"><button class="btn" type="submit">上傳並套用到後端</button></div>
+  </form>
+</div>
+{% endblock %}

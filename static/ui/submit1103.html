@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>📝 送件 · 掃描/輸入學號</title>
+  <style>
+    :root{
+      --brand:#1e7bd8; --bg:#f5f8fb; --card:#ffffff; --muted:#5a6b80; --br:#d9e8fb;
+      --ok:#0a8754; --warn:#e38b06; --bad:#d64545;
+    }
+    *{box-sizing:border-box}
+    html,body{margin:0;padding:0;background:var(--bg);font-family:system-ui,-apple-system,"Microsoft JhengHei",Segoe UI,Roboto,Arial}
+    header{position:sticky;top:0;z-index:9;background:var(--brand);color:#fff;display:flex;align-items:center;justify-content:space-between;padding:10px 14px;box-shadow:0 2px 8px rgba(0,0,0,.06)}
+    header .title{font-weight:700;letter-spacing:.3px}
+    header .links a{color:#dff1ff;text-decoration:none;margin-left:12px;font-size:13px}
+    main{max-width:1100px;margin:0 auto;padding:14px}
+    .card{background:var(--card);border:1px solid var(--br);border-radius:14px;box-shadow:0 4px 18px rgba(30,123,216,.05);padding:12px 14px;margin-bottom:14px}
+    h2{margin:6px 0 10px 0;font-size:18px}
+    .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+    label{font-size:13px;color:var(--muted)}
+    input[type="text"], select{
+      padding:10px 12px;border:1px solid var(--br);border-radius:12px;background:#fff;outline:none;font-size:16px;
+    }
+    input#sid{min-width:260px}
+    button{
+      background:var(--brand);color:#fff;border:0;border-radius:12px;padding:10px 14px;cursor:pointer;
+      box-shadow:0 2px 8px rgba(30,123,216,.18);font-size:15px
+    }
+    button.secondary{background:#eef6ff;color:#0b2239;border:1px solid var(--br)}
+    button.danger{background:#ffe9e9;color:#8b1515;border:1px solid #ffcdcd}
+    .pill{display:inline-flex;align-items:center;padding:6px 10px;border-radius:999px;border:1px solid var(--br);background:#fff;color:var(--muted);font-size:12px}
+    .ok{color:var(--ok)} .bad{color:var(--bad)} .warn{color:var(--warn)}
+    .hint{font-size:12px;color:var(--muted)}
+    .mono{font-family:ui-monospace, Menlo, Consolas, "Courier New", monospace}
+    .grid{display:grid;grid-template-columns: 1fr 1fr; gap:14px}
+    @media (max-width: 900px){ .grid{grid-template-columns:1fr} }
+    .panel{border:1px solid #eef2f7;border-radius:12px;padding:12px}
+    .status{font-size:14px}
+    .log{max-height:220px;overflow:auto;border:1px solid #eef2f7;border-radius:10px;padding:8px;background:#fff}
+    .log .item{font-size:13px;border-bottom:1px dashed #eee;padding:6px 2px}
+    .log .item:last-child{border-bottom:0}
+    .video-wrap{position:relative;border:1px solid #eef2f7;border-radius:12px;overflow:hidden;background:#000}
+    video{width:100%;height:360px;object-fit:cover;background:#000}
+    canvas{display:none}
+    .badge{display:inline-block;border:1px solid var(--br);background:#fff;color:#0b2239;padding:2px 8px;border-radius:999px;font-size:12px;margin-left:6px}
+  </style>
+</head>
+<body>
+  <header>
+    <div class="title">📝 送件 · 掃描/輸入學號 <span id="apiBadge" class="badge"></span></div>
+    <div class="links">
+      <a id="lnkHealth" href="#" target="_blank">/health</a>
+      <a id="lnkStats" href="#" target="_blank">/stats</a>
+      <a id="lnkCsv" href="#" target="_blank">下載 CSV</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>後端連線</h2>
+      <div class="row">
+        <label>API Base</label>
+        <input type="text" id="apiBase" class="mono" style="min-width:420px" />
+        <button id="btnPing" class="secondary">測試 /health</button>
+        <span id="apiMsg" class="hint"></span>
+      </div>
+      <div class="hint" style="margin-top:6px">
+        建議單機相機：<span class="mono">http://localhost:8080</span>；此頁也可用 <span class="mono">?api=…</span> 自動設定。
+      </div>
+    </section>
+
+    <div class="grid">
+      <section class="card panel">
+        <h2>手動輸入</h2>
+        <div class="row" style="margin-bottom:10px">
+          <label>學號/ID</label>
+          <input type="text" id="sid" placeholder="請輸入或由掃描器輸入…" />
+          <button id="btnSubmit">送出</button>
+          <label class="pill"><input type="checkbox" id="ckBeep" checked style="margin-right:6px">成功提示音</label>
+        </div>
+        <div id="submitMsg" class="status"></div>
+      </section>
+
+      <section class="card panel">
+        <h2>相機掃描 <span id="secureBadge" class="badge">檢查中</span></h2>
+        <div class="row" style="margin-bottom:8px">
+          <label>相機</label>
+          <select id="camList" style="min-width:260px"></select>
+          <button id="btnStart">開始掃描</button>
+          <button id="btnStop" class="secondary">停止</button>
+          <button id="btnTorch" class="secondary" style="display:none">手電筒</button>
+          <label class="pill"><input type="checkbox" id="ckAuto" checked style="margin-right:6px">自動送出</label>
+        </div>
+        <div class="video-wrap">
+          <video id="preview" playsinline></video>
+        </div>
+        <div id="camMsg" class="status" style="margin-top:8px"></div>
+      </section>
+    </div>
+
+    <section class="card">
+      <h2>最近送出</h2>
+      <div id="recent" class="log"></div>
+    </section>
+  </main>
+
+  <canvas id="off" width="640" height="360"></canvas>
+
+  <script>
+    // ====== 小工具 ======
+    const $ = s => document.querySelector(s);
+    const sleep = ms => new Promise(r => setTimeout(r, ms));
+    const urlParams = new URLSearchParams(location.search);
+
+    const apiInput = $("#apiBase");
+    const apiMsg = $("#apiMsg");
+    const submitMsg = $("#submitMsg");
+    const camMsg = $("#camMsg");
+    const recent = $("#recent");
+    const secureBadge = $("#secureBadge");
+
+    const isSecure = window.isSecureContext || location.protocol === "https:";
+    secureBadge.textContent = isSecure ? "安全情境" : "非安全情境";
+    secureBadge.style.background = isSecure ? "#eaf9f0" : "#fff3e8";
+    secureBadge.style.borderColor = isSecure ? "#bde6c8" : "#ffd7b3";
+    secureBadge.style.color = isSecure ? "#0a8754" : "#e38b06";
+
+    // API Base：?api= 覆寫，否則預設同源
+    const defaultApi = urlParams.get("api") || location.origin;
+    apiInput.value = defaultApi;
+    const resolve = (u)=> /^https?:\/\//i.test(u) ? u : (apiInput.value.replace(/\/+$/,'') + u);
+
+    // 讓 header 連結跟著 API Base
+    const lnkHealth = $("#lnkHealth");
+    const lnkStats  = $("#lnkStats");
+    const lnkCsv    = $("#lnkCsv");
+    function refreshApiLinks(){
+      lnkHealth.href = resolve("/health");
+      lnkStats.href  = resolve("/stats");
+      lnkCsv.href    = resolve("/download.csv");
+      $("#apiBadge").textContent = apiInput.value;
+    }
+    refreshApiLinks();
+    apiInput.addEventListener("input", refreshApiLinks);
+
+    // 簡易嗶聲
+    function beepOK(){
+      try{
+        const ctx = new (window.AudioContext||window.webkitAudioContext)();
+        const o = ctx.createOscillator(); const g = ctx.createGain();
+        o.frequency.value = 880; o.type="sine";
+        o.connect(g); g.connect(ctx.destination);
+        g.gain.setValueAtTime(0.0001, ctx.currentTime);
+        g.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime+0.01);
+        o.start();
+        setTimeout(()=>{ g.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime+0.05); o.stop(ctx.currentTime+0.06); }, 60);
+      }catch(e){}
+    }
+
+    function addLog(ok, text){
+      const div = document.createElement("div");
+      div.className = "item";
+      div.innerHTML = `<span class="${ok? 'ok':'bad'}">${ok? '✔':'✖'}</span> ${text}`;
+      recent.prepend(div);
+      while(recent.children.length > 100) recent.removeChild(recent.lastChild);
+    }
+
+    // 解析 QR 內容：支援 URL ?id= 與純字串
+    function extractId(raw){
+      let s = (raw||"").trim();
+      if(!s) return "";
+      try{ const u = new URL(s); const qid = u.searchParams.get("id"); if(qid) return qid.trim(); }catch(_){}
+      return s;
+    }
+
+    async function postScan(id){
+      const base = apiInput.value.trim().replace(/\/+$/,"");
+      if(!base){ submitMsg.innerHTML = `<span class="bad">未設定 API Base</span>`; return false; }
+      try{
+        const r = await fetch(base + "/scan", {
+          method:"POST",
+          headers: { "Content-Type":"application/json" },
+          body: JSON.stringify({ id: String(id).trim() }),
+          mode: "cors",
+          cache: "no-store",
+        });
+        const j = await r.json().catch(()=>({ok:false, err:"invalid_json"}));
+        if(!r.ok || j.ok === false){
+          const msg = j.err || `HTTP ${r.status}`;
+          submitMsg.innerHTML = `<span class="bad">送出失敗：</span> <span class="mono">${msg}</span>`;
+          addLog(false, `ID=${id} · ${msg}`);
+          return false;
+        }
+        submitMsg.innerHTML = `<span class="ok">已送出</span> <span class="mono">${j.id}</span> <span class="hint">(${j.time||''})</span>`;
+        addLog(true, `ID=${j.id} (${j.time||''})`);
+        if($("#ckBeep").checked) beepOK();
+        return true;
+      }catch(e){
+        submitMsg.innerHTML = `<span class="bad">連線錯誤：</span> <span class="mono">${e.message||e}</span>`;
+        addLog(false, `ID=${id} · ${e.message||e}`);
+        return false;
+      }
+    }
+
+    // ====== 手動輸入 ======
+    $("#btnSubmit").addEventListener("click", async ()=>{
+      const v = $("#sid").value.trim();
+      if(!v){ submitMsg.innerHTML = `<span class="bad">請輸入學號</span>`; return; }
+      if(await postScan(v)) $("#sid").value = "";
+      $("#sid").focus();
+    });
+    $("#sid").addEventListener("keydown", async (e)=>{
+      if(e.key === "Enter"){
+        const v = $("#sid").value.trim();
+        if(!v) return;
+        if(await postScan(v)) $("#sid").value = "";
+      }
+    });
+
+    // ====== API 健康檢查 ======
+    $("#btnPing").addEventListener("click", async ()=>{
+      const base = apiInput.value.trim().replace(/\/+$/,"");
+      if(!base){ apiMsg.textContent="請先設定 API Base"; return; }
+      apiMsg.textContent = "測試中…";
+      try{
+        const r = await fetch(base + "/health", { cache:"no-store", mode:"cors" });
+        const j = await r.json();
+        apiMsg.innerHTML = `<span class="ok">OK</span> ts=<span class="mono">${j.ts||'—'}</span>`;
+      }catch(e){
+        apiMsg.innerHTML = `<span class="bad">無法連線：</span> <span class="mono">${e.message||e}</span>`;
+      }
+    });
+
+    // ====== 相機掃描（BarcodeDetector → ZXing 後援） ======
+    const video = $("#preview");
+    const camList = $("#camList");
+    const btnStart = $("#btnStart");
+    const btnStop = $("#btnStop");
+    const btnTorch = $("#btnTorch");
+    const off = $("#off");
+    const offCtx = off.getContext("2d");
+
+    let stream = null;
+    let running = false;
+    let lastCode = "";
+    let lastAt = 0;
+    let detector = null;       // BarcodeDetector or ZXing reader
+    let usingNative = false;
+    let imageCapture = null;   // 用於 torch
+    let currentTrack = null;
+
+    function cooldown(code){
+      const now = Date.now();
+      if(code === lastCode && (now - lastAt) < 1500) return true;
+      lastCode = code; lastAt = now; return false;
+    }
+
+    async function listCams(){
+      try{
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const vids = devices.filter(d => d.kind === "videoinput");
+        camList.innerHTML = "";
+        vids.forEach((d, i)=>{
+          const opt = document.createElement("option");
+          opt.value = d.deviceId;
+          opt.textContent = d.label || `Camera ${i+1}`;
+          camList.appendChild(opt);
+        });
+      }catch(_){}
+    }
+
+    async function start(){
+      if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+        camMsg.innerHTML = `<span class="bad">相機啟動失敗：</span>此頁需在 <b>HTTPS</b> 或 <b>http://localhost</b> 才能使用相機。`;
+        return;
+      }
+      if(running) return;
+      running = true;
+      camMsg.textContent = "啟動中…";
+
+      const wantedId = camList.value || undefined;
+      const constraints = {
+        audio: false,
+        video: wantedId ? { deviceId:{exact:wantedId} } : {
+          facingMode: { ideal: "environment" },
+          width: { ideal: 1280 }, height: { ideal: 720 }
+        }
+      };
+
+      try{
+        stream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = stream;
+        await video.play();
+
+        await listCams(); // 授權後才能讀到標籤
+        currentTrack = stream.getVideoTracks()[0];
+
+        // 手電筒可用性
+        try{
+          const caps = currentTrack.getCapabilities?.() || {};
+          if(caps.torch){ btnTorch.style.display = "inline-block"; }
+          imageCapture = caps.torch ? new ImageCapture(currentTrack) : null;
+        }catch(_){ btnTorch.style.display = "none"; imageCapture = null; }
+
+        // 選擇偵測器
+        detector = null; usingNative = false;
+        if("BarcodeDetector" in window){
+          try{
+            detector = new window.BarcodeDetector({ formats: ['code_128','ean_13','ean_8','qr_code','code_39','upc_a','upc_e','itf'] });
+            usingNative = true;
+            camMsg.innerHTML = `<span class="ok">相機已啟動</span> · 偵測器：<b>原生</b>`;
+          }catch(_){ detector = null; }
+        }
+        if(!detector){
+          camMsg.innerHTML = `載入 ZXing…`;
+          await ensureZXing(); // 一次載入並快取
+          usingNative = false;
+          camMsg.innerHTML = `<span class="ok">相機已啟動</span> · 偵測器：ZXing`;
+        }
+
+        // 進入循環
+        loop();
+      }catch(e){
+        running = false;
+        camMsg.innerHTML = `<span class="bad">相機啟動失敗：</span><span class="mono">${e.message||e}</span><br><span class="hint">若非 localhost，請改用 HTTPS（可信憑證）開啟此頁。</span>`;
+        stop();
+      }
+    }
+
+    async function stop(){
+      running = false;
+      try{ if(video) video.pause(); }catch(_){}
+      try{ if(stream){ stream.getTracks().forEach(t => t.stop()); } }catch(_){}
+      stream = null; detector = null; imageCapture=null; currentTrack=null;
+      camMsg.textContent = "已停止";
+    }
+
+    async function loop(){
+      while(running && stream && video.readyState >= 2){
+        try{
+          if(usingNative){
+            const barcodes = await detector.detect(video);
+            if(barcodes && barcodes.length){
+              const code = extractId(barcodes[0].rawValue||"");
+              if(code && !cooldown(code)){
+                $("#sid").value = code;
+                if($("#ckAuto").checked) await postScan(code);
+              }
+            }
+          }else{
+            // ZXing：把當前畫面畫到 canvas 再 decode
+            off.width = video.videoWidth || 640;
+            off.height = video.videoHeight || 360;
+            offCtx.drawImage(video, 0, 0, off.width, off.height);
+            const code = await zxingDecodeFromCanvas().catch(()=>null);
+            if(code && !cooldown(code)){
+              const id = extractId(code);
+              $("#sid").value = id;
+              if($("#ckAuto").checked) await postScan(id);
+            }
+          }
+        }catch(_){ }
+        await sleep(120); // 掃描節流
+      }
+    }
+
+    // ===== 手電筒（支援的裝置才有用） =====
+    let torchOn = false;
+    $("#btnTorch").addEventListener("click", async ()=>{
+      if(!currentTrack) return;
+      try{
+        const caps = currentTrack.getCapabilities?.() || {};
+        if(!caps.torch){ camMsg.innerHTML = `<span class="warn">此裝置不支援手電筒</span>`; return; }
+        torchOn = !torchOn;
+        await currentTrack.applyConstraints({ advanced:[{ torch: torchOn }] });
+        camMsg.textContent = torchOn ? "手電筒：開" : "手電筒：關";
+      }catch(e){
+        camMsg.innerHTML = `<span class="bad">手電筒失敗：</span><span class="mono">${e.message||e}</span>`;
+      }
+    });
+
+    // ===== ZXing 後援（一次載入＋快取，直接讀 canvas 像素） =====
+    let zxl = null; // @zxing/library 模組
+    let zxReader = null;
+
+    async function ensureZXing(){
+      if(zxl && zxReader) return;
+      zxl = await import("https://cdn.jsdelivr.net/npm/@zxing/library@latest/+esm");
+      zxReader = new zxl.BrowserMultiFormatReader();
+    }
+    async function zxingDecodeFromCanvas(){
+      if(!zxl || !zxReader) return null;
+      const img = offCtx.getImageData(0, 0, off.width, off.height);
+      const luminance = new zxl.RGBLuminanceSource(img.data, off.width, off.height);
+      const bin = new zxl.BinaryBitmap(new zxl.HybridBinarizer(luminance));
+      try{
+        const result = zxReader.decodeBitmap(bin);
+        return result?.getText?.() || null;
+      }catch(_){ return null; }
+    }
+
+    // ===== 事件綁定 =====
+    $("#btnStart").addEventListener("click", start);
+    $("#btnStop").addEventListener("click", stop);
+    $("#apiBase").addEventListener("change", refreshApiLinks);
+    camList.addEventListener("change", async ()=>{
+      if(running){ await stop(); await sleep(50); await start(); }
+    });
+
+    // 初始：若可先列裝置
+    if(navigator.mediaDevices && navigator.mediaDevices.enumerateDevices){
+      listCams();
+    }
+  </script>
+</body>
+</html>

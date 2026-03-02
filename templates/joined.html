@@ -1,0 +1,20 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="card">
+  <h3>合併名冊（最新在上）</h3>
+  {% if err %}<div class="err">{{ err }}</div>{% endif %}
+  <form method="get" class="form-row">
+    顯示筆數：<input type="number" name="limit" min="10" max="100000" value="{{ limit }}"/>
+    <button class="btn" type="submit">更新</button>
+  </form>
+  <div class="muted">欄位：{{ ", ".join(keys) if keys else "-" }}</div>
+  <table id="tbl" class="display">
+    <thead><tr>{% for k in keys %}<th>{{ k }}</th>{% endfor %}</tr></thead>
+    <tbody>
+      {% for r in items %}<tr>{% for k in keys %}<td>{{ r.get(k,"") }}</td>{% endfor %}</tr>{% endfor %}
+    </tbody>
+  </table>
+</div>
+<script>enhanceTable('#tbl');</script>
+<a class="btn outline" href="{{ url_for('download') }}">下載合併後 CSV</a>
+{% endblock %}

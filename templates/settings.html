@@ -1,0 +1,13 @@
+{% extends "layout.html" %}
+{% block content %}
+<div class="card">
+  <h3>後端連線設定</h3>
+  <form method="post">
+    <div class="form-row">
+      <label>後端 URL：</label>
+      <input type="text" name="backend" value="{{ backend }}" style="width:420px" placeholder="http://127.0.0.1:8080 或 ngrok https URL"/>
+    </div>
+    <div class="form-row"><button class="btn" type="submit">儲存</button></div>
+  </form>
+</div>
+{% endblock %}
